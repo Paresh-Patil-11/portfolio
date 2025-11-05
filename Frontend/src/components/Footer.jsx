@@ -1,85 +1,70 @@
 import React, { useState, useEffect } from 'react';
 
-// Use a consistent session key name
-const SESSION_KEY = 'portfolio_viewed'; 
-// The API URL will automatically use the environment variable on deployment
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Session key to prevent double counting per browser session
+const SESSION_KEY = 'portfolio_viewed';
+
+// API URL from environment variables or fallback to your deployed backend
+const API_URL = import.meta.env.VITE_API_URL || 'https://portfolio-backend-bvnu.onrender.com';
 
 const Footer = () => {
   const [viewCount, setViewCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // Function to fetch the current view count
-  const fetchAndSetViewCount = async () => {
+  // Fetch current view count
+  const fetchViewCount = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/views`);
-      const data = await response.json();
-      
+      const res = await fetch(`${API_URL}/api/views`);
+      const data = await res.json();
       if (data.success) {
-        // Always display the count from the server
         setViewCount(data.views);
-        return data.views; // Return the count for use in the next step
+        return data.views;
       } else {
-        console.error('Failed to fetch view count:', data.message);
-        setViewCount('--'); 
+        console.error('Failed to fetch views:', data.message);
+        setViewCount(0);
+        return 0;
       }
-    } catch (error) {
-      console.error('Error fetching view count:', error);
-      setViewCount('--'); 
+    } catch (err) {
+      console.error('Error fetching views:', err);
+      setViewCount(0);
+      return 0;
     }
-    return 0; // Return 0 or any fallback on failure
   };
 
-  // Function to conditionally increment the view count
-  const attemptIncrementView = async () => {
-    // Check if user has already been counted in this session
+  // Increment view count if user hasn’t been counted in this session
+  const incrementViewCount = async () => {
     const hasViewed = sessionStorage.getItem(SESSION_KEY);
-    
     if (!hasViewed) {
       try {
-        const response = await fetch(`${API_URL}/api/views/increment`, {
+        const res = await fetch(`${API_URL}/api/views/increment`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
         });
-        
-        const data = await response.json();
-        
+        const data = await res.json();
         if (data.success) {
-          // If increment succeeds, update the count state and session storage
           setViewCount(data.views);
           sessionStorage.setItem(SESSION_KEY, 'true');
         } else {
-          console.error('Failed to increment view count:', data.message);
+          console.error('Failed to increment views:', data.message);
         }
-      } catch (error) {
-        console.error('Error incrementing view count:', error);
+      } catch (err) {
+        console.error('Error incrementing views:', err);
       }
     }
   };
 
   useEffect(() => {
     const initializeViews = async () => {
-      // 1. Fetch the current view count immediately to show a count while the user is viewing
-      await fetchAndSetViewCount();
-      
-      // 2. Only if not viewed in this session, attempt to increment
-      await attemptIncrementView();
-
-      // 3. Stop loading once both operations are done
+      await fetchViewCount();
+      await incrementViewCount();
       setLoading(false);
     };
-
     initializeViews();
-    // Empty dependency array ensures this runs only ONCE after the initial render
   }, []);
 
   return (
     <footer className="footer-section">
       <div className="container">
         <div className="footer-content">
-          {/* View Counter */}
           <div
             className="view-counter"
             style={{
@@ -129,98 +114,8 @@ const Footer = () => {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
         }
-
-        .footer-content {
-          padding: 2rem 0;
-        }
-
-        .view-counter:hover {
-          transform: translateY(-3px);
-          box-shadow: var(--shadow-lg);
-        }
-
-        .footer-bottom {
-          padding-top: 2rem;
-          border-top: 1px solid var(--border-light);
-        }
-
-        .copyright {
-          color: var(--text-muted);
-          font-size: 0.9rem;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.25rem;
-        }
-
-        @media (min-width: 768px) {
-          .copyright {
-            justify-content: flex-start;
-          }
-        }
-
-        .social-links {
-          display: flex;
-          justify-content: center;
-          gap: 1rem;
-        }
-
-        @media (min-width: 768px) {
-          .social-links {
-            justify-content: flex-end;
-          }
-        }
-
-        .social-links a {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 40px;
-          height: 40px;
-          background: var(--bg-secondary);
-          color: var(--text-primary);
-          border-radius: 50%;
-          text-decoration: none;
-          transition: all var(--transition-normal);
-          border: 1px solid var(--border-color);
-        }
-
-        .social-links a:hover {
-          background: var(--primary);
-          color: var(--text-white);
-          transform: translateY(-3px);
-          box-shadow: var(--shadow-md);
-          border-color: var(--primary);
-        }
-
-        .social-links i {
-          font-size: 1.1rem;
-        }
-
-        @media (max-width: 768px) {
-          .view-counter {
-            font-size: 1rem !important;
-            padding: 1.25rem !important;
-            margin-bottom: 2rem !important;
-          }
-
-          .footer-bottom {
-            text-align: center;
-          }
-
-          .copyright {
-            font-size: 0.85rem;
-          }
-
-          .social-links a {
-            width: 36px;
-            height: 36px;
-          }
-
-          .social-links i {
-            font-size: 1rem;
-          }
-        }
+        .footer-content { padding: 2rem 0; }
+        .view-counter:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
       `}</style>
     </footer>
   );
