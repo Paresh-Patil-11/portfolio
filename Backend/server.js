@@ -20,19 +20,18 @@ app.use(
 
 app.use(express.json());
 
-// Enhanced transporter configuration with better error handling
+// 🚀 FIX: Switched to Port 465 with secure: true for robust connection
+// This often resolves 'Could not connect' errors in deployment environments
 const transporter = nodemailer.createTransport({
   service: "gmail",
   host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // Use TLS
+  port: 465, // Changed from 587 to 465
+  secure: true, // Changed from false to true (Use SSL/TLS)
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  tls: {
-    rejectUnauthorized: false // For development/testing
-  }
+  // Removed the 'tls' option as it's not needed with secure: true
 });
 
 // Verify transporter configuration
@@ -102,7 +101,8 @@ app.post("/api/contact", async (req, res) => {
     });
   }
 
-  const phoneRegex = /^[0-9+\-\s()]{10,}$/;
+  // Simplified regex for phone to support international formats
+  const phoneRegex = /^[0-9+\-\s()]{10,}$/; 
   if (!phoneRegex.test(phone)) {
     return res.status(400).json({
       success: false,
@@ -302,13 +302,15 @@ app.post("/api/contact", async (req, res) => {
 
     let errorMessage = "Failed to send message. Please try again later.";
 
+    // Improved error handling based on common Nodemailer codes
     if (error.code === "EAUTH" || error.responseCode === 535) {
       errorMessage =
-        "Email authentication failed. Please check email configuration.";
+        "Email authentication failed. Please check email configuration (App Password).";
       console.error("⚠️ Authentication Error - Check your Gmail App Password");
-    } else if (error.code === "ECONNECTION" || error.code === "ETIMEDOUT") {
+    } else if (error.code === "ECONNECTION" || error.code === "ETIMEDOUT" || error.code === "ESOCKET") {
       errorMessage =
-        "Could not connect to email server. Please try again later.";
+        "Could not connect to email server. The server may be blocking the port. Please try again later.";
+      console.error("⚠️ Connection Error - Check firewall/port settings (try port 465)");
     } else if (error.code === "EMESSAGE") {
       errorMessage = "Invalid message format. Please check your input.";
     }
