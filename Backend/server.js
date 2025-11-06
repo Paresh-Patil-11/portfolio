@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
+const sgTransport = require('nodemailer-sendgrid-transport'); // NEW API Transport
 require("dotenv").config();
 
 const app = express();
@@ -20,25 +21,21 @@ app.use(
 
 app.use(express.json());
 
-// Transporter configuration switched to SendGrid's SMTP
-// Requires SENDGRID_API_KEY and SENDER_EMAIL environment variables
-const transporter = nodemailer.createTransport({
-  host: "smtp.sendgrid.net",
-  port: 587,
-  secure: false, // Use STARTTLS
+// Transporter configuration switched to SendGrid API Transport (Bypasses Render's firewall)
+const transporter = nodemailer.createTransport(sgTransport({
   auth: {
-    user: "apikey", // fixed string for SendGrid API key usage
-    pass: process.env.SENDGRID_API_KEY,
-  },
-});
+    // The SendGrid API key is the only credential needed for the API transport
+    api_key: process.env.SENDGRID_API_KEY
+  }
+}));
 
 // Verify transporter configuration
 transporter.verify((error, success) => {
   if (error) {
     console.error("❌ Email configuration error:", error);
-    console.log("⚠️ Please check your SENDGRID_API_KEY and SENDER_EMAIL in .env file");
+    console.log("⚠️ Please check your SENDGRID_API_KEY and SENDER_EMAIL environment variables. Also, ensure your SENDER_EMAIL is verified in SendGrid.");
   } else {
-    console.log("✅ Email server is ready to send messages (via SendGrid)");
+    console.log("✅ Email server is ready to send messages (via SendGrid API)");
   }
 });
 
@@ -300,13 +297,13 @@ app.post("/api/contact", async (req, res) => {
 
     let errorMessage = "Failed to send message. Please try again later.";
 
-    if (error.code === "EAUTH" || error.responseCode === 535) {
+    if (error.code === "EAUTH" || error.responseCode === 401) { // 401 is common API auth error
       errorMessage =
         "Email authentication failed. Please check SendGrid API Key.";
       console.error("⚠️ Authentication Error - Check your SendGrid API Key");
     } else if (error.code === "ECONNECTION" || error.code === "ETIMEDOUT" || error.code === "ESOCKET") {
       errorMessage =
-        "Could not connect to email server. Please try again later.";
+        "Could not connect to email service. This should not happen with API transport. Check network or API key permissions.";
     } else if (error.code === "EMESSAGE") {
       errorMessage = "Invalid message format. Please check your input.";
     }
