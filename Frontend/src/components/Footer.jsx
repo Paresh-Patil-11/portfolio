@@ -1,16 +1,12 @@
 import React, { useState, useEffect } from 'react';
 
-// Session key to prevent double counting per browser session
 const SESSION_KEY = 'portfolio_viewed';
-
-// API URL from environment variables or fallback to your deployed backend
 const API_URL = import.meta.env.VITE_API_URL || 'https://portfolio-backend-bvnu.onrender.com';
 
 const Footer = () => {
   const [viewCount, setViewCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // Fetch current view count
   const fetchViewCount = async () => {
     try {
       const res = await fetch(`${API_URL}/api/views`);
@@ -30,7 +26,6 @@ const Footer = () => {
     }
   };
 
-  // Increment view count if user hasn’t been counted in this session
   const incrementViewCount = async () => {
     const hasViewed = sessionStorage.getItem(SESSION_KEY);
     if (!hasViewed) {
