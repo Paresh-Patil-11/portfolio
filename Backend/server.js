@@ -1,7 +1,6 @@
 const express = require("express");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
-const sgTransport = require('nodemailer-sendgrid-transport'); // NEW API Transport
 require("dotenv").config();
 
 const app = express();
@@ -21,21 +20,28 @@ app.use(
 
 app.use(express.json());
 
-// Transporter configuration switched to SendGrid API Transport (Bypasses Render's firewall)
-const transporter = nodemailer.createTransport(sgTransport({
+// 🚀 FIX: Switched to Port 465 with secure: true for robust connection
+// This often resolves 'Could not connect' errors in deployment environments
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 465, // Changed from 587 to 465
+  secure: true, // Changed from false to true (Use SSL/TLS)
   auth: {
-    // The SendGrid API key is the only credential needed for the API transport
-    api_key: process.env.SENDGRID_API_KEY
-  }
-}));
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+  // Removed the 'tls' option as it's not needed with secure: true
+});
 
 // Verify transporter configuration
 transporter.verify((error, success) => {
   if (error) {
     console.error("❌ Email configuration error:", error);
-    console.log("⚠️ Please check your SENDGRID_API_KEY and SENDER_EMAIL environment variables. Also, ensure your SENDER_EMAIL is verified in SendGrid.");
+    console.log("⚠️ Please check your EMAIL_USER and EMAIL_PASS in .env file");
+    console.log("⚠️ Make sure you're using a Gmail App Password, not your regular password");
   } else {
-    console.log("✅ Email server is ready to send messages (via SendGrid API)");
+    console.log("✅ Email server is ready to send messages");
   }
 });
 
@@ -44,7 +50,7 @@ app.get("/", (req, res) => {
     success: true,
     message: "Portfolio Backend API is running",
     timestamp: new Date().toISOString(),
-    emailConfigured: !!(process.env.SENDGRID_API_KEY && process.env.SENDER_EMAIL),
+    emailConfigured: !!(process.env.EMAIL_USER && process.env.EMAIL_PASS),
   });
 });
 
@@ -53,7 +59,7 @@ app.get("/api/health", (req, res) => {
     success: true,
     message: "Server is running",
     timestamp: new Date().toISOString(),
-    emailConfigured: !!(process.env.SENDGRID_API_KEY && process.env.SENDER_EMAIL),
+    emailConfigured: !!(process.env.EMAIL_USER && process.env.EMAIL_PASS),
   });
 });
 
@@ -95,7 +101,8 @@ app.post("/api/contact", async (req, res) => {
     });
   }
 
-  const phoneRegex = /^[0-9+\-\s()]{10,}$/;
+  // Simplified regex for phone to support international formats
+  const phoneRegex = /^[0-9+\-\s()]{10,}$/; 
   if (!phoneRegex.test(phone)) {
     return res.status(400).json({
       success: false,
@@ -103,22 +110,20 @@ app.post("/api/contact", async (req, res) => {
     });
   }
 
-  // Check if SendGrid credentials are configured
-  if (!process.env.SENDGRID_API_KEY || !process.env.SENDER_EMAIL) {
-    console.error("❌ SendGrid credentials not configured");
+  // Check if email is configured
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.error("❌ Email credentials not configured");
     return res.status(500).json({
       success: false,
       message: "Email service is not configured. Please contact the administrator.",
     });
   }
-  
-  const senderEmail = process.env.SENDER_EMAIL;
 
   try {
     // Main email to yourself
     const mailOptions = {
-      from: `"Portfolio Contact" <${senderEmail}>`,
-      to: senderEmail,
+      from: `"Portfolio Contact" <${process.env.EMAIL_USER}>`,
+      to: process.env.EMAIL_USER,
       replyTo: email,
       subject: `🎯 New Portfolio Contact: ${name}`,
       html: `
@@ -227,7 +232,7 @@ app.post("/api/contact", async (req, res) => {
 
     // Auto-reply email to the sender
     const autoReplyOptions = {
-      from: `"Paresh Patil" <${senderEmail}>`,
+      from: `"Paresh Patil" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "Thanks for reaching out! 🙏",
       html: `
@@ -278,7 +283,7 @@ app.post("/api/contact", async (req, res) => {
     res.status(200).json({
       success: true,
       message:
-        "Thank thank you for reaching out! Your message has been sent successfully.",
+        "Thank you for reaching out! Your message has been sent successfully.",
       data: {
         name,
         email,
@@ -297,13 +302,15 @@ app.post("/api/contact", async (req, res) => {
 
     let errorMessage = "Failed to send message. Please try again later.";
 
-    if (error.code === "EAUTH" || error.responseCode === 401) { // 401 is common API auth error
+    // Improved error handling based on common Nodemailer codes
+    if (error.code === "EAUTH" || error.responseCode === 535) {
       errorMessage =
-        "Email authentication failed. Please check SendGrid API Key.";
-      console.error("⚠️ Authentication Error - Check your SendGrid API Key");
+        "Email authentication failed. Please check email configuration (App Password).";
+      console.error("⚠️ Authentication Error - Check your Gmail App Password");
     } else if (error.code === "ECONNECTION" || error.code === "ETIMEDOUT" || error.code === "ESOCKET") {
       errorMessage =
-        "Could not connect to email service. This should not happen with API transport. Check network or API key permissions.";
+        "Could not connect to email server. The server may be blocking the port. Please try again later.";
+      console.error("⚠️ Connection Error - Check firewall/port settings (try port 465)");
     } else if (error.code === "EMESSAGE") {
       errorMessage = "Invalid message format. Please check your input.";
     }
@@ -336,6 +343,6 @@ app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
   console.log(`📍 API URL: http://localhost:${PORT}`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || "development"}`);
-  console.log(`📧 SendGrid Configured: ${process.env.SENDER_EMAIL || "Not set"}`);
-  console.log(`🔑 SendGrid Key set: ${process.env.SENDGRID_API_KEY ? "Yes" : "No"}`);
+  console.log(`📧 Email configured: ${process.env.EMAIL_USER || "Not set"}`);
+  console.log(`🔑 Email password set: ${process.env.EMAIL_PASS ? "Yes" : "No"}`);
 });
