@@ -4,7 +4,7 @@ const nodemailer = require("nodemailer");
 require("dotenv").config();
 
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5000;
 
 // In-Memory View Counter (Resets on server restart)
 let viewCount = 0;
@@ -20,18 +20,27 @@ app.use(
 
 app.use(express.json());
 
+// Enhanced transporter configuration with better error handling
 const transporter = nodemailer.createTransport({
   service: "gmail",
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false, // Use TLS
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  tls: {
+    rejectUnauthorized: false // For development/testing
+  }
 });
 
+// Verify transporter configuration
 transporter.verify((error, success) => {
   if (error) {
     console.error("❌ Email configuration error:", error);
     console.log("⚠️ Please check your EMAIL_USER and EMAIL_PASS in .env file");
+    console.log("⚠️ Make sure you're using a Gmail App Password, not your regular password");
   } else {
     console.log("✅ Email server is ready to send messages");
   }
@@ -42,6 +51,7 @@ app.get("/", (req, res) => {
     success: true,
     message: "Portfolio Backend API is running",
     timestamp: new Date().toISOString(),
+    emailConfigured: !!(process.env.EMAIL_USER && process.env.EMAIL_PASS),
   });
 });
 
@@ -50,6 +60,7 @@ app.get("/api/health", (req, res) => {
     success: true,
     message: "Server is running",
     timestamp: new Date().toISOString(),
+    emailConfigured: !!(process.env.EMAIL_USER && process.env.EMAIL_PASS),
   });
 });
 
@@ -75,6 +86,7 @@ app.post("/api/views/increment", (req, res) => {
 app.post("/api/contact", async (req, res) => {
   const { name, email, phone, message } = req.body;
 
+  // Validation
   if (!name || !email || !phone || !message) {
     return res.status(400).json({
       success: false,
@@ -98,9 +110,19 @@ app.post("/api/contact", async (req, res) => {
     });
   }
 
+  // Check if email is configured
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.error("❌ Email credentials not configured");
+    return res.status(500).json({
+      success: false,
+      message: "Email service is not configured. Please contact the administrator.",
+    });
+  }
+
   try {
+    // Main email to yourself
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: `"Portfolio Contact" <${process.env.EMAIL_USER}>`,
       to: process.env.EMAIL_USER,
       replyTo: email,
       subject: `🎯 New Portfolio Contact: ${name}`,
@@ -208,47 +230,55 @@ app.post("/api/contact", async (req, res) => {
       `,
     };
 
+    // Auto-reply email to the sender
     const autoReplyOptions = {
-      from: process.env.EMAIL_USER,
+      from: `"Paresh Patil" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: "Thanks for reaching out!",
+      subject: "Thanks for reaching out! 🙏",
       html: `
-    <html>
-      <head>
-        <style>
-          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f7f8fa; padding: 0; margin: 0; }
-          .wrapper { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; box-shadow: 0 5px 25px rgba(0,0,0,0.08); overflow: hidden; }
-          .header { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; text-align: center; padding: 40px 25px; }
-          .header h1 { margin: 0; font-size: 26px; font-weight: 700; }
-          .content { padding: 35px 25px; color: #333; line-height: 1.7; }
-          .content p { margin: 15px 0; font-size: 15px; }
-          .footer { background: #f1f3f5; text-align: center; padding: 20px; color: #555; font-size: 13px; }
-        </style>
-      </head>
-      <body>
-        <div class="wrapper">
-          <div class="header">
-            <h1>Hi ${name}, your message has been received!</h1>
-          </div>
-          <div class="content">
-            <p>Thank you for getting in touch — I really appreciate you taking the time to write.</p>
-            <p>I’ve received your message and will personally get back to you as soon as I can. Usually I reply within one business day.</p>
-            <p>If your request is urgent, feel free to reply to this email directly, and I’ll do my best to prioritize it.</p>
-            <p>Warm regards,<br><strong>Paresh Patil</strong></p>
-          </div>
-          <div class="footer">
-            <p>This is an automatic confirmation just to let you know your message went through successfully.</p>
-          </div>
-        </div>
-      </body>
-    </html>
-  `,
+        <html>
+          <head>
+            <style>
+              body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f7f8fa; padding: 0; margin: 0; }
+              .wrapper { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; box-shadow: 0 5px 25px rgba(0,0,0,0.08); overflow: hidden; }
+              .header { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; text-align: center; padding: 40px 25px; }
+              .header h1 { margin: 0; font-size: 26px; font-weight: 700; }
+              .content { padding: 35px 25px; color: #333; line-height: 1.7; }
+              .content p { margin: 15px 0; font-size: 15px; }
+              .footer { background: #f1f3f5; text-align: center; padding: 20px; color: #555; font-size: 13px; }
+            </style>
+          </head>
+          <body>
+            <div class="wrapper">
+              <div class="header">
+                <h1>Hi ${name}, your message has been received!</h1>
+              </div>
+              <div class="content">
+                <p>Thank you for getting in touch — I really appreciate you taking the time to write.</p>
+                <p>I've received your message and will personally get back to you as soon as I can. Usually I reply within one business day.</p>
+                <p>If your request is urgent, feel free to reply to this email directly, and I'll do my best to prioritize it.</p>
+                <p>Warm regards,<br><strong>Paresh Patil</strong></p>
+              </div>
+              <div class="footer">
+                <p>This is an automatic confirmation just to let you know your message went through successfully.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
     };
 
+    console.log("📧 Attempting to send emails...");
+    
+    // Send main email
     await transporter.sendMail(mailOptions);
+    console.log("✅ Main email sent successfully");
+    
+    // Send auto-reply
     await transporter.sendMail(autoReplyOptions);
+    console.log("✅ Auto-reply email sent successfully");
 
-    console.log(`✅ Email sent successfully from: ${name} (${email})`);
+    console.log(`✅ Complete: Email sent from ${name} (${email})`);
 
     res.status(200).json({
       success: true,
@@ -263,16 +293,24 @@ app.post("/api/contact", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error sending email:", error);
+    console.error("Error details:", {
+      code: error.code,
+      command: error.command,
+      response: error.response,
+      responseCode: error.responseCode,
+    });
 
     let errorMessage = "Failed to send message. Please try again later.";
 
-    if (error.code === "EAUTH") {
+    if (error.code === "EAUTH" || error.responseCode === 535) {
       errorMessage =
-        "Email configuration error. Please contact the administrator.";
-      console.error("⚠️ Check your EMAIL_USER and EMAIL_PASS in .env file");
-    } else if (error.code === "ECONNECTION") {
+        "Email authentication failed. Please check email configuration.";
+      console.error("⚠️ Authentication Error - Check your Gmail App Password");
+    } else if (error.code === "ECONNECTION" || error.code === "ETIMEDOUT") {
       errorMessage =
         "Could not connect to email server. Please try again later.";
+    } else if (error.code === "EMESSAGE") {
+      errorMessage = "Invalid message format. Please check your input.";
     }
 
     res.status(500).json({
@@ -304,4 +342,5 @@ app.listen(PORT, () => {
   console.log(`📍 API URL: http://localhost:${PORT}`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(`📧 Email configured: ${process.env.EMAIL_USER || "Not set"}`);
+  console.log(`🔑 Email password set: ${process.env.EMAIL_PASS ? "Yes" : "No"}`);
 });
