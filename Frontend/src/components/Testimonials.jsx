@@ -17,7 +17,7 @@ const testimonials = [
     position: "Chief Doctor",
     project: "Shashwati Healthcare",
     video: "/video/medicare.mp4",
-    thumbnail: "/images/client2.png",
+    thumbnail: "/images/client10.png",
     text: "Paresh created a seamless doctor appointment system for our clinic. The interface is clean and the backend is highly efficient, making patient scheduling smooth and automated.",
     rating: 5,
   },
