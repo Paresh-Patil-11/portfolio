@@ -19,6 +19,9 @@ app.use(
 
 app.use(express.json());
 
+// In-memory view counter (resets when server restarts)
+let viewCount = 0;
+
 // Email Transporter Configuration
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -52,6 +55,23 @@ app.get("/api/health", (req, res) => {
     success: true,
     message: "Server is running",
     timestamp: new Date().toISOString(),
+  });
+});
+
+// Get view count endpoint
+app.get("/api/views", (req, res) => {
+  res.json({
+    success: true,
+    views: viewCount,
+  });
+});
+
+// Increment view count endpoint
+app.post("/api/views/increment", (req, res) => {
+  viewCount++;
+  res.json({
+    success: true,
+    views: viewCount,
   });
 });
 
@@ -402,9 +422,9 @@ app.post("/api/contact", async (req, res) => {
           </div>
           <div class="content">
             <p>Thank you for getting in touch — I really appreciate you taking the time to write.</p>
-            <p>I’ve received your message and will personally get back to you as soon as I can. 
+            <p>I've received your message and will personally get back to you as soon as I can. 
                Usually I reply within one business day.</p>
-            <p>If your request is urgent, feel free to reply to this email directly, and I’ll do my best to prioritize it.</p>
+            <p>If your request is urgent, feel free to reply to this email directly, and I'll do my best to prioritize it.</p>
             <p>Warm regards,<br><strong>Paresh Patil</strong></p>
           </div>
           <div class="footer">
@@ -416,12 +436,7 @@ app.post("/api/contact", async (req, res) => {
   `,
     };
 
-    // Send both emails
-    await transporter.sendMail(mailOptions);
-    await transporter.sendMail(autoReplyOptions);
-
-    console.log(`✅ Email sent successfully from: ${name} (${email})`);
-
+    // Send response immediately, then send emails in background
     res.status(200).json({
       success: true,
       message:
@@ -433,8 +448,19 @@ app.post("/api/contact", async (req, res) => {
         timestamp: new Date().toISOString(),
       },
     });
+
+    // Send emails in background (non-blocking)
+    Promise.all([
+      transporter.sendMail(mailOptions),
+      transporter.sendMail(autoReplyOptions)
+    ]).then(() => {
+      console.log(`✅ Emails sent successfully for: ${name} (${email})`);
+    }).catch(error => {
+      console.error("❌ Error sending emails:", error);
+    });
+
   } catch (error) {
-    console.error("❌ Error sending email:", error);
+    console.error("❌ Error processing contact form:", error);
 
     // Provide more specific error messages
     let errorMessage = "Failed to send message. Please try again later.";
@@ -479,4 +505,5 @@ app.listen(PORT, () => {
   console.log(`📍 API URL: http://localhost:${PORT}`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(`📧 Email configured: ${process.env.EMAIL_USER || "Not set"}`);
+  console.log(`👁️  View counter initialized at: ${viewCount}`);
 });
