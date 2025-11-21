@@ -6,22 +6,32 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://portfolio-backend-bvnu.
 const Footer = () => {
   const [viewCount, setViewCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   const fetchViewCount = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/views`);
+      const res = await fetch(`${API_URL}/api/views`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!res.ok) {
+        throw new Error('Failed to fetch views');
+      }
+      
       const data = await res.json();
       if (data.success) {
         setViewCount(data.views);
+        setError(false);
         return data.views;
       } else {
-        console.error('Failed to fetch views:', data.message);
-        setViewCount(0);
-        return 0;
+        throw new Error('Invalid response from server');
       }
     } catch (err) {
       console.error('Error fetching views:', err);
-      setViewCount(0);
+      setError(true);
       return 0;
     }
   };
@@ -34,15 +44,22 @@ const Footer = () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
+        
+        if (!res.ok) {
+          throw new Error('Failed to increment views');
+        }
+        
         const data = await res.json();
         if (data.success) {
           setViewCount(data.views);
           sessionStorage.setItem(SESSION_KEY, 'true');
+          setError(false);
         } else {
-          console.error('Failed to increment views:', data.message);
+          throw new Error('Invalid response from server');
         }
       } catch (err) {
         console.error('Error incrementing views:', err);
+        setError(true);
       }
     }
   };
@@ -89,6 +106,13 @@ const Footer = () => {
                   animation: 'spin 0.8s linear infinite',
                 }}></span>
                 Loading views...
+              </div>
+            ) : error ? (
+              <div style={{ color: 'var(--text-muted)' }}>
+                <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24" style={{ marginRight: '0.5rem', verticalAlign: 'middle' }}>
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                </svg>
+                Views temporarily unavailable
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
